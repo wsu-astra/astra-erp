@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Layout } from '../components/Layout'
 import api from '../lib/api'
 import { DollarSign, TrendingUp, TrendingDown, PieChart, Sparkles, Calendar, BarChart3 } from 'lucide-react'
+import { showToast } from '../components/Toast'
 
 export default function Money() {
   const [financials, setFinancials] = useState<any[]>([])
@@ -115,7 +116,7 @@ export default function Money() {
       fetchFinancials()
       fetchSummary()
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to save record')
+      showToast(error.response?.data?.detail || 'Failed to save record', 'error')
     }
   }
 

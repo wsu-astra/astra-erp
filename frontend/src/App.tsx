@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { BusinessProvider } from './contexts/BusinessContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { ToastContainer } from './components/Toast'
 
 // Pages
 import SignUp from './pages/SignUp'
@@ -19,6 +20,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <BusinessProvider>
+          <ToastContainer />
           <Routes>
             {/* Public routes */}
             <Route path="/signup" element={<SignUp />} />

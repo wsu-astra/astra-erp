@@ -3,6 +3,7 @@ import { Layout } from '../components/Layout'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../lib/api'
 import { UserCog } from 'lucide-react'
+import { showToast } from '../components/Toast'
 
 interface Employee {
   user_id: string
@@ -39,10 +40,10 @@ export default function PermissionsAdmin() {
       await fetchEmployees()
       console.log('[ADMIN_TOGGLE] Employees refreshed')
       
-      alert(`✅ User is now ${isAdminStatus ? 'an Admin' : 'an Employee'}`)
+      showToast(`User is now ${isAdminStatus ? 'an Admin' : 'an Employee'}`, 'success')
     } catch (error: any) {
       console.error('[ADMIN_TOGGLE] Error:', error)
-      alert(error.response?.data?.detail || 'Failed to update admin status')
+      showToast(error.response?.data?.detail || 'Failed to update admin status', 'error')
     }
   }
 

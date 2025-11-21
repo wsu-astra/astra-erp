@@ -8,8 +8,11 @@ from dotenv import load_dotenv
 import os
 from typing import Optional
 
-from models import LoginRequest, AuthResponse, BusinessResponse
+from models import SignUpRequest, LoginRequest, AuthResponse, BusinessResponse
 import uuid
+from pydantic import BaseModel
+from auth import get_current_user
+from fastapi import Depends
 from db import get_supabase
 from routers import inventory, employees, schedule, money, reminders, dashboard, permissions_admin, employee_invites
 
@@ -320,6 +323,70 @@ async def get_business(business_id: str):
         raise HTTPException(status_code=404, detail="Business not found")
     
     return result.data[0]
+
+# ==================== STORE HOURS ====================
+
+class DayHours(BaseModel):
+    open_time: str = "09:00"
+    close_time: str = "17:00"
+    closed: bool = False
+
+class StoreHours(BaseModel):
+    monday: DayHours = DayHours()
+    tuesday: DayHours = DayHours()
+    wednesday: DayHours = DayHours()
+    thursday: DayHours = DayHours()
+    friday: DayHours = DayHours()
+    saturday: DayHours = DayHours()
+    sunday: DayHours = DayHours()
+
+@app.get("/api/business/store-hours")
+async def get_store_hours(current_user: dict = Depends(get_current_user)):
+    """Get business store hours by day"""
+    business_id = current_user["business_id"]
+    supabase = get_supabase()
+    
+    result = supabase.table("businesses")\
+        .select("store_hours")\
+        .eq("id", business_id)\
+        .execute()
+    
+    if result.data and result.data[0] and result.data[0].get("store_hours"):
+        return result.data[0]["store_hours"]
+    
+    # Default hours if not set (9 AM - 5 PM, closed Sunday)
+    default_hours = {
+        "monday": {"open_time": "09:00", "close_time": "17:00", "closed": False},
+        "tuesday": {"open_time": "09:00", "close_time": "17:00", "closed": False},
+        "wednesday": {"open_time": "09:00", "close_time": "17:00", "closed": False},
+        "thursday": {"open_time": "09:00", "close_time": "17:00", "closed": False},
+        "friday": {"open_time": "09:00", "close_time": "17:00", "closed": False},
+        "saturday": {"open_time": "09:00", "close_time": "17:00", "closed": False},
+        "sunday": {"open_time": "09:00", "close_time": "17:00", "closed": True}
+    }
+    return default_hours
+
+@app.put("/api/business/store-hours")
+async def update_store_hours(
+    hours: StoreHours,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update business store hours by day"""
+    business_id = current_user["business_id"]
+    supabase = get_supabase()
+    
+    # Convert Pydantic model to dict
+    hours_dict = hours.model_dump()
+    
+    result = supabase.table("businesses")\
+        .update({"store_hours": hours_dict})\
+        .eq("id", business_id)\
+        .execute()
+    
+    return {
+        "message": "Store hours updated successfully!",
+        "hours": hours_dict
+    }
 
 if __name__ == "__main__":
     import uvicorn

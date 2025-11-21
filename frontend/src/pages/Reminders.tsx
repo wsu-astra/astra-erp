@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Layout } from '../components/Layout'
 import api from '../lib/api'
+import { showToast } from '../components/Toast'
+import { ConfirmDialog } from '../components/Modal'
 
 export default function Reminders() {
   const [reminders, setReminders] = useState<any[]>([])
@@ -12,6 +14,7 @@ export default function Reminders() {
     message: '',
     active: true
   })
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: number | null }>({ isOpen: false, id: null })
 
   useEffect(() => {
     fetchReminders()
@@ -34,17 +37,24 @@ export default function Reminders() {
       setFormData({ type: 'inventory', day_of_week: 'mon', time_of_day: '09:00', message: '', active: true })
       fetchReminders()
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to create reminder')
+      showToast(error.response?.data?.detail || 'Failed to create reminder', 'error')
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this reminder?')) return
+  const handleDeleteClick = (id: number) => {
+    setDeleteConfirm({ isOpen: true, id })
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.id) return
     try {
-      await api.delete(`/api/reminders/${id}`)
+      await api.delete(`/api/reminders/${deleteConfirm.id}`)
       fetchReminders()
+      showToast('Reminder deleted successfully', 'success')
     } catch (error) {
-      alert('Failed to delete reminder')
+      showToast('Failed to delete reminder', 'error')
+    } finally {
+      setDeleteConfirm({ isOpen: false, id: null })
     }
   }
 
@@ -89,10 +99,21 @@ export default function Reminders() {
                 </div>
                 <p className="text-gray-900">{reminder.message}</p>
               </div>
-              <button onClick={() => handleDelete(reminder.id)} className="text-red-600 hover:text-red-700">Delete</button>
+              <button onClick={() => handleDeleteClick(reminder.id)} className="text-red-600 hover:text-red-700">Delete</button>
             </div>
           ))}
         </div>
+        
+        <ConfirmDialog
+          isOpen={deleteConfirm.isOpen}
+          onClose={() => setDeleteConfirm({ isOpen: false, id: null })}
+          onConfirm={handleDeleteConfirm}
+          title="Delete Reminder"
+          message="Are you sure you want to delete this reminder? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant="danger"
+        />
       </div>
     </Layout>
   )

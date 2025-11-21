@@ -1,0 +1,1 @@
+ALTER TABLE shifts ALTER COLUMN employee_id TYPE uuid USING employee_id::text::uuid;

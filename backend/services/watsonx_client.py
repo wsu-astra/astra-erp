@@ -162,7 +162,11 @@ JSON Response:"""
         self, 
         week_start: str, 
         staffing_rules: List[Dict], 
-        employees: List[Dict]
+        employees: List[Dict],
+        preferences: str = "",
+        current_schedule: List[Dict] = None,
+        store_hours: Dict = None,
+        shift_slots: List[Dict] = None
     ) -> List[Dict[str, Any]]:
         """
         Generate optimal employee schedule using WatsonX.
@@ -178,26 +182,43 @@ JSON Response:"""
         print(f"   Week starting: {week_start}")
         print(f"   {len(employees)} employees, {len(staffing_rules)} days to schedule")
         
+        preferences_section = f"\n\nAdditional Preferences:\n{preferences}\n" if preferences.strip() else ""
+        
+        current_schedule_section = ""
+        if current_schedule:
+            current_schedule_section = f"\n\nCurrent Schedule (you can modify/improve this):\n{json.dumps(current_schedule, indent=2)}\n"
+        
+        store_hours_section = ""
+        if store_hours:
+            store_hours_section = f"\n\nStore Hours (schedule shifts within these times):\n{json.dumps(store_hours, indent=2)}\n"
+        
+        shift_slots_section = ""
+        if shift_slots:
+            shift_slots_section = f"\n\nShift Slots (assign employees to these specific time slots):\n{json.dumps(shift_slots, indent=2)}\n"
+        
         prompt = f"""You are a scheduling AI for a small business. Create an optimal employee schedule.
 
 Rules:
 1. ONLY schedule employees who are available that day
-2. NEVER schedule the same employee twice in one day
+2. NEVER schedule the same employee twice in one day  
 3. Meet the required staff count for each day
-4. Pair STRONG employees with NEW employees when possible
-5. Distribute shifts evenly across employees
-6. If not enough staff available, schedule as many as possible
+4. ONLY schedule shifts during store operating hours (ignore closed days)
+5. IMPORTANT: If shift slots are provided, you MUST use ONLY those exact time slots. Match employees to the configured slots - DO NOT create custom times. Each shift MUST use the start_time and end_time from one of the shift_slots for that day.
+6. Pair SHIFTLEADER employees with NEW employees when possible
+7. Distribute shifts evenly across employees
+8. If not enough staff available, schedule as many as possible
+9. When shift_slots are configured, create one shift per slot per employee (respecting the required_count for each slot){preferences_section}
 
 Week Start: {week_start}
 
 Staffing Requirements:
-{json.dumps(staffing_rules, indent=2)}
+{json.dumps(staffing_rules, indent=2)}{store_hours_section}{shift_slots_section}
 
 Available Employees:
-{json.dumps(employees, indent=2)}
+{json.dumps(employees, indent=2)}{current_schedule_section}
 
 Return ONLY valid JSON in this exact format:
-{{"shifts": [{{"employee_id": 1, "day": "fri"}}]}}
+{{"shifts": [{{"employee_id": "uuid-here", "day": "fri", "start_time": "09:00", "end_time": "17:00"}}]}}
 
 JSON Response:"""
 

@@ -85,7 +85,7 @@ class EmployeeCreate(BaseModel):
     full_name: str
     email: Optional[str] = None
     role: Optional[str] = None
-    strength: Literal['strong', 'normal', 'new'] = 'normal'
+    strength: Literal['shiftleader', 'normal', 'new'] = 'normal'
     active: bool = True
     availability: List[str] = []  # List of days: ['mon', 'tue', ...]
     create_user_account: bool = False  # If true, creates login account
@@ -101,7 +101,7 @@ class EmployeeCreate(BaseModel):
 class EmployeeUpdate(BaseModel):
     full_name: Optional[str] = None
     role: Optional[str] = None
-    strength: Optional[Literal['strong', 'normal', 'new']] = None
+    strength: Optional[Literal['shiftleader', 'normal', 'new']] = None
     active: Optional[bool] = None
     availability: Optional[List[str]] = None
 
@@ -131,16 +131,40 @@ class StaffingRuleResponse(BaseModel):
 
 # ==================== SCHEDULE MODELS ====================
 
+class ShiftSlotCreate(BaseModel):
+    day_of_week: Literal['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+    slot_name: str
+    start_time: str
+    end_time: str
+    required_count: int = Field(ge=0, default=1)
+
+class ShiftSlotUpdate(BaseModel):
+    slot_name: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    required_count: Optional[int] = Field(ge=0, default=None)
+
+class ShiftSlotResponse(BaseModel):
+    id: int
+    business_id: str
+    day_of_week: str
+    slot_name: str
+    start_time: str
+    end_time: str
+    required_count: int
+
 class ScheduleGenerateRequest(BaseModel):
     week_start: date
+    preferences: Optional[str] = ""
 
 class ShiftResponse(BaseModel):
     id: int
     business_id: str
     week_start: str
     day_of_week: str
-    employee_id: int
+    employee_id: str
     employee_name: str
+    employee_strength: str
     start_time: str
     end_time: str
 
