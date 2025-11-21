@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Layout } from '../components/Layout'
 import api from '../lib/api'
 import { DollarSign, TrendingUp, TrendingDown, PieChart, Sparkles, Calendar, BarChart3 } from 'lucide-react'
@@ -154,6 +154,29 @@ export default function Money() {
     return 'bg-red-100 text-red-800'
   }
 
+  // Group financials by month
+  const groupedByMonth = financials.reduce((acc: any, record: any) => {
+    const month = record.week_start.substring(0, 7) // Extract YYYY-MM
+    if (!acc[month]) {
+      acc[month] = {
+        month,
+        weeks: [],
+        total_revenue: 0,
+        total_expenses: 0,
+        total_profit: 0
+      }
+    }
+    acc[month].weeks.push(record)
+    acc[month].total_revenue += record.gross_sales
+    acc[month].total_expenses += record.total_expenses
+    acc[month].total_profit += record.net_profit
+    return acc
+  }, {})
+
+  const monthlyGroups = Object.values(groupedByMonth).sort((a: any, b: any) => 
+    b.month.localeCompare(a.month)
+  )
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -236,7 +259,7 @@ export default function Money() {
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-4 py-2 border rounded-lg text-gray-900"
+              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 border-none"
             >
               <option value="all">All Time</option>
               {monthlyData.map(m => (
@@ -502,7 +525,7 @@ export default function Money() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Week</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" colSpan={2}>Month / Week</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expenses</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net Profit</th>
@@ -511,7 +534,7 @@ export default function Money() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Health</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody>
                 {financials.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
@@ -519,24 +542,48 @@ export default function Money() {
                     </td>
                   </tr>
                 ) : (
-                  financials.map((record) => (
-                    <tr key={record.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleViewWeek(record)}>
-                      <td className="px-6 py-4 text-sm text-gray-900">{record.week_start}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">${record.gross_sales.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">${record.total_expenses.toLocaleString()}</td>
-                      <td className={`px-6 py-4 text-sm font-bold ${record.net_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${record.net_profit.toLocaleString()}
-                      </td>
-                      <td className={`px-6 py-4 text-sm font-bold ${record.profit_margin >= 20 ? 'text-green-600' : record.profit_margin >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
-                        {record.profit_margin}%
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{record.payroll_pct}%</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(record.status)}`}>
-                          {record.status === 'green' ? '✅ Healthy' : record.status === 'yellow' ? '⚠️ Warning' : '❌ Critical'}
-                        </span>
-                      </td>
-                    </tr>
+                  monthlyGroups.map((monthGroup: any) => (
+                    <React.Fragment key={monthGroup.month}>
+                      {/* Month Header Row */}
+                      <tr className="bg-primary-50 border-t-2 border-primary-200">
+                        <td className="px-6 py-3 text-sm font-bold text-primary-900" colSpan={2}>
+                          📅 {new Date(monthGroup.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                          <span className="ml-2 text-xs font-normal text-primary-700">({monthGroup.weeks.length} week{monthGroup.weeks.length !== 1 ? 's' : ''})</span>
+                        </td>
+                        <td className="px-6 py-3 text-sm font-semibold text-primary-900">${monthGroup.total_revenue.toLocaleString()}</td>
+                        <td className="px-6 py-3 text-sm font-semibold text-primary-900">${monthGroup.total_expenses.toLocaleString()}</td>
+                        <td className={`px-6 py-3 text-sm font-bold ${monthGroup.total_profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                          ${monthGroup.total_profit.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-3 text-sm font-semibold text-primary-900">
+                          {((monthGroup.total_profit / monthGroup.total_revenue) * 100).toFixed(1)}%
+                        </td>
+                        <td className="px-6 py-3"></td>
+                        <td className="px-6 py-3"></td>
+                      </tr>
+                      
+                      {/* Week Rows */}
+                      {monthGroup.weeks.map((record: any) => (
+                        <tr key={record.id} className="hover:bg-gray-50 cursor-pointer border-l-4 border-l-primary-200" onClick={() => handleViewWeek(record)}>
+                          <td className="px-6 py-4 text-sm text-gray-900 pl-10">{record.week_start}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600"></td>
+                          <td className="px-6 py-4 text-sm font-medium text-gray-900">${record.gross_sales.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-sm text-gray-900">${record.total_expenses.toLocaleString()}</td>
+                          <td className={`px-6 py-4 text-sm font-bold ${record.net_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            ${record.net_profit.toLocaleString()}
+                          </td>
+                          <td className={`px-6 py-4 text-sm font-bold ${record.profit_margin >= 20 ? 'text-green-600' : record.profit_margin >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                            {record.profit_margin}%
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">{record.payroll_pct}%</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(record.status)}`}>
+                              {record.status === 'green' ? '✅ Healthy' : record.status === 'yellow' ? '⚠️ Warning' : '❌ Critical'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
                   ))
                 )}
               </tbody>
