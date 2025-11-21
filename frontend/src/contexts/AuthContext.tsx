@@ -13,7 +13,7 @@ interface AuthContextType {
   permissions: string[]
   loading: boolean
   login: (email: string, password: string) => Promise<void>
-  signup: (email: string, password: string, businessName: string) => Promise<void>
+  signup: (email: string, password: string, businessName: string, fullName: string) => Promise<void>
   logout: () => void
   hasPermission: (permission: string) => boolean
   hasAnyPermission: (...permissions: string[]) => boolean
@@ -71,12 +71,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const signup = async (email: string, password: string, businessName: string) => {
+  const signup = async (email: string, password: string, businessName: string, fullName: string) => {
     try {
       const response = await api.post('/api/auth/signup', {
         email,
         password,
         business_name: businessName,
+        full_name: fullName,
       })
       const { access_token, user_id, business_id, role, permissions } = response.data
 

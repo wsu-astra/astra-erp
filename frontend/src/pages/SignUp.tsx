@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Building2, X, AlertCircle } from 'lucide-react'
 
 export default function SignUp() {
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [businessName, setBusinessName] = useState('')
@@ -23,7 +24,7 @@ export default function SignUp() {
     setLoading(true)
 
     try {
-      await signup(email, password, businessName)
+      await signup(email, password, businessName, fullName)
       navigate('/dashboard')
     } catch (err: any) {
       setError(err.message || 'Failed to create account')
@@ -75,6 +76,21 @@ export default function SignUp() {
               onChange={(e) => setBusinessName(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder="Joe's Pizza Shop"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
+              Your Full Name
+            </label>
+            <input
+              id="fullName"
+              type="text"
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="John Doe"
             />
           </div>
 

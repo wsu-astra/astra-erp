@@ -9,6 +9,7 @@ class SignUpRequest(BaseModel):
     email: str
     password: str
     business_name: str
+    full_name: str
 
 class LoginRequest(BaseModel):
     email: str

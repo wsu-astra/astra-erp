@@ -95,7 +95,7 @@ async def signup(signup_data: SignUpRequest):
             "id": auth_result.user.id,
             "business_id": business_id,
             "email": signup_data.email,
-            "full_name": signup_data.business_name,  # Use business name as fallback
+            "full_name": signup_data.full_name,  # Use provided full name
             "role": "admin",  # First user is always admin
             "is_admin": True  # Set admin flag
         }).execute()
