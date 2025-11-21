@@ -80,6 +80,7 @@ async def invite_employee(
             "email": invite_data.email,
             "full_name": invite_data.full_name,
             "role": invite_data.role,
+            "is_admin": invite_data.role == "admin",  # Set is_admin based on role
             "is_active": True
         }).execute()
         

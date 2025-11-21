@@ -96,7 +96,8 @@ async def signup(signup_data: SignUpRequest):
             "business_id": business_id,
             "email": signup_data.email,
             "full_name": signup_data.business_name,  # Use business name as fallback
-            "role": "admin"  # First user is always admin
+            "role": "admin",  # First user is always admin
+            "is_admin": True  # Set admin flag
         }).execute()
         
         # Check if session exists (it won't if email confirmation is required)

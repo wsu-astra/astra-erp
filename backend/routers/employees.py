@@ -108,6 +108,7 @@ async def create_employee(
                     "email": employee.email,
                     "full_name": employee.full_name,
                     "role": "employee",
+                    "is_admin": False,  # Regular employees are not admins
                     "is_active": True
                 }).execute()
                 
