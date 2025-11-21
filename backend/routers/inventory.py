@@ -78,6 +78,11 @@ async def update_inventory_item(
         if check_duplicate_item(business_id, item_update.name, exclude_id=item_id):
             raise HTTPException(status_code=400, detail="Item name already exists")
     
+    # Get old values before update
+    old_quantity = existing.data[0]["current_quantity"]
+    old_min_quantity = existing.data[0]["minimum_quantity"]
+    was_low_stock = old_quantity < old_min_quantity
+    
     # Update only provided fields
     update_data = {k: v for k, v in item_update.model_dump().items() if v is not None}
     
@@ -86,7 +91,47 @@ async def update_inventory_item(
         .eq("id", item_id)\
         .execute()
     
-    return format_inventory_item(result.data[0])
+    updated_item = result.data[0]
+    new_quantity = updated_item["current_quantity"]
+    new_min_quantity = updated_item["minimum_quantity"]
+    is_now_low_stock = new_quantity < new_min_quantity
+    
+    # Only send email if:
+    # 1. Current quantity changed (not just threshold adjustment)
+    # 2. Item was NOT low stock before
+    # 3. Item IS low stock now
+    # 4. Threshold wasn't changed (avoid spam from threshold adjustments)
+    quantity_decreased = new_quantity < old_quantity
+    threshold_unchanged = new_min_quantity == old_min_quantity
+    
+    if quantity_decreased and not was_low_stock and is_now_low_stock and threshold_unchanged:
+        # Item quantity decreased and just crossed threshold - send automatic alert
+        from services.email_service import email_service
+        
+        # Get business name
+        business_result = supabase.table("businesses")\
+            .select("name")\
+            .eq("id", business_id)\
+            .single()\
+            .execute()
+        
+        business_name = business_result.data["name"] if business_result.data else "Your Business"
+        user_email = current_user["email"]
+        
+        # Send alert for this one item
+        email_service.send_low_stock_alert(
+            to_email=user_email,
+            business_name=business_name,
+            low_stock_items=[{
+                "name": updated_item["name"],
+                "current_quantity": new_quantity,
+                "minimum_quantity": new_min_quantity,
+                "unit": updated_item["unit"]
+            }]
+        )
+        print(f"🔔 Auto-sent low stock alert for {updated_item['name']} to {user_email}")
+    
+    return format_inventory_item(updated_item)
 
 @router.delete("/{item_id}")
 async def delete_inventory_item(
@@ -142,7 +187,22 @@ async def generate_order_list(current_user: dict = Depends(get_current_user)):
     # Use WatsonX to generate orders
     orders = watsonx_client.generate_inventory_orders(low_stock_items)
     
-    return {"orders": orders}
+    # Enrich orders with item details
+    enriched_orders = []
+    for order in orders:
+        # Find the matching item
+        item = next((item for item in result.data if item["id"] == order["id"]), None)
+        if item:
+            enriched_orders.append({
+                "item_name": item["name"],
+                "category": item.get("category", "Uncategorized"),
+                "suggested_quantity": order["order_qty"],
+                "unit": item["unit"],
+                "current_quantity": item["current_quantity"],
+                "minimum_quantity": item["minimum_quantity"]
+            })
+    
+    return {"orders": enriched_orders}
 
 @router.get("/instacart-link/{item_id}")
 async def get_instacart_order_link(
@@ -168,3 +228,65 @@ async def get_instacart_order_link(
         raise HTTPException(status_code=400, detail="No Instacart search term configured")
     
     return {"url": get_instacart_link(search_term)}
+
+@router.post("/send-low-stock-alert")
+async def send_low_stock_alert(current_user: dict = Depends(get_current_user)):
+    """Send email alert for all low stock items"""
+    business_id = current_user["business_id"]
+    user_email = current_user["email"]
+    supabase = get_supabase()
+    
+    # Get business name
+    business_result = supabase.table("businesses")\
+        .select("name")\
+        .eq("id", business_id)\
+        .single()\
+        .execute()
+    
+    business_name = business_result.data["name"] if business_result.data else "Your Business"
+    
+    # Get all low stock items
+    inventory_result = supabase.table("inventory_items")\
+        .select("*")\
+        .eq("business_id", business_id)\
+        .execute()
+    
+    low_stock_items = [
+        {
+            "name": item["name"],
+            "current_quantity": item["current_quantity"],
+            "minimum_quantity": item["minimum_quantity"],
+            "unit": item["unit"]
+        }
+        for item in inventory_result.data
+        if item["current_quantity"] < item["minimum_quantity"]
+    ]
+    
+    if not low_stock_items:
+        return {
+            "success": True,
+            "message": "No low stock items - nothing to alert!",
+            "items_alerted": 0
+        }
+    
+    # Send email
+    from services.email_service import email_service
+    
+    success = email_service.send_low_stock_alert(
+        to_email=user_email,
+        business_name=business_name,
+        low_stock_items=low_stock_items
+    )
+    
+    if success:
+        return {
+            "success": True,
+            "message": f"Alert sent for {len(low_stock_items)} low stock items",
+            "items_alerted": len(low_stock_items),
+            "items": low_stock_items
+        }
+    else:
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to send email alert"
+        )

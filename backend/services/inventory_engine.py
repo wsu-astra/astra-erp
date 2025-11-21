@@ -25,7 +25,8 @@ def get_instacart_link(search_term: str) -> str:
     """Generate Instacart search URL"""
     if not search_term:
         return ""
-    return f"https://www.instacart.com/store/search?q={search_term.replace(' ', '+')}"
+    from urllib.parse import quote
+    return f"https://www.instacart.com/store/s?k={quote(search_term)}"
 
 def check_duplicate_item(business_id: str, item_name: str, exclude_id: int = None) -> bool:
     """Check if item name already exists for this business"""
