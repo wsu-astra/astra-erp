@@ -12,13 +12,13 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const defaultDayHours = { open_time: '09:00', close_time: '17:00', closed: false }
   const [storeHours, setStoreHours] = useState({
+    sunday: { ...defaultDayHours, closed: true },
     monday: defaultDayHours,
     tuesday: defaultDayHours,
     wednesday: defaultDayHours,
     thursday: defaultDayHours,
     friday: defaultDayHours,
-    saturday: defaultDayHours,
-    sunday: { ...defaultDayHours, closed: true }
+    saturday: defaultDayHours
   })
   const [showHoursModal, setShowHoursModal] = useState(false)
   const [editingHours, setEditingHours] = useState(storeHours)
@@ -44,8 +44,18 @@ export default function Dashboard() {
   const fetchStoreHours = async () => {
     try {
       const response = await api.get('/api/business/store-hours')
-      setStoreHours(response.data)
-      setEditingHours(response.data)
+      // Ensure days are in the correct order: Sunday -> Saturday
+      const orderedHours = {
+        monday: response.data.monday,
+        tuesday: response.data.tuesday,
+        wednesday: response.data.wednesday,
+        thursday: response.data.thursday,
+        friday: response.data.friday,
+        saturday: response.data.saturday,
+        sunday: response.data.sunday
+      }
+      setStoreHours(orderedHours)
+      setEditingHours(orderedHours)
     } catch (error) {
       console.error('Failed to fetch store hours:', error)
     }

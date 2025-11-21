@@ -11,7 +11,6 @@ export default function Schedule() {
   const [shifts, setShifts] = useState<any[]>([])
   const getCurrentWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   const [weekStart, setWeekStart] = useState(getCurrentWeekStart())
-  const [showRulesModal, setShowRulesModal] = useState(false)
   const [showAvailabilityCalendar, setShowAvailabilityCalendar] = useState(false)
   const [showPreferencesModal, setShowPreferencesModal] = useState(false)
   const [showShiftSlotsModal, setShowShiftSlotsModal] = useState(false)
@@ -19,6 +18,7 @@ export default function Schedule() {
   const [showCopySlotModal, setShowCopySlotModal] = useState(false)
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false)
   const [showDeleteSlotConfirm, setShowDeleteSlotConfirm] = useState<number | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [aiPreferences, setAiPreferences] = useState('')
   const [shiftSlots, setShiftSlots] = useState<any[]>([])
   const [currentDay, setCurrentDay] = useState<string>('')
@@ -32,13 +32,9 @@ export default function Schedule() {
   })
 
   const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-  const [ruleCounts, setRuleCounts] = useState<any>({
-    mon: 3, tue: 3, wed: 3, thu: 3, fri: 5, sat: 4, sun: 2
-  })
 
   useEffect(() => {
     fetchShifts()
-    fetchStaffingRules()
     fetchShiftSlots()
   }, [weekStart])
 
@@ -60,60 +56,25 @@ export default function Schedule() {
     }
   }
 
-  const fetchStaffingRules = async () => {
-    try {
-      const response = await api.get('/api/schedule/staffing-rules')
-      
-      // Update counts from existing rules
-      const counts: any = { mon: 3, tue: 3, wed: 3, thu: 3, fri: 5, sat: 4, sun: 2 }
-      response.data.forEach((rule: any) => {
-        counts[rule.day_of_week] = rule.required_count
-      })
-      setRuleCounts(counts)
-    } catch (error) {
-      console.error('Failed to fetch staffing rules:', error)
-    }
-  }
-
-  const saveStaffingRules = async () => {
-    try {
-      for (const day of days) {
-        try {
-          await api.post('/api/schedule/staffing-rules', {
-            day_of_week: day,
-            required_count: ruleCounts[day]
-          })
-        } catch (error: any) {
-          // If already exists, update it
-          if (error.response?.status === 400) {
-            await api.put(`/api/schedule/staffing-rules/${day}`, {
-              required_count: ruleCounts[day]
-            })
-          }
-        }
-      }
-      setShowRulesModal(false)
-      fetchStaffingRules()
-      showToast('Staffing rules saved successfully!', 'success')
-    } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to save staffing rules'
-      showToast(message, 'error')
-    }
-  }
 
   const generateSchedule = async () => {
+    setIsGenerating(true)
+    setShowGenerateConfirm(false)
+    
+    console.log('[SCHEDULE_GENERATE] Sending request with preferences:', aiPreferences)
+    
     try {
       await api.post('/api/schedule/generate', { 
         week_start: weekStart,
         preferences: aiPreferences 
       })
       showToast('Schedule generated successfully!', 'success')
-      setShowGenerateConfirm(false)
-      fetchShifts()
+      await fetchShifts()
     } catch (error: any) {
       const message = error.response?.data?.detail || 'Failed to generate schedule'
       showToast(message, 'error')
-      setShowGenerateConfirm(false)
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -165,12 +126,6 @@ export default function Schedule() {
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               Configure Shifts
-            </button>
-            <button 
-              onClick={() => setShowRulesModal(true)} 
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Set Staffing Rules
             </button>
             <button 
               onClick={() => setShowPreferencesModal(true)} 
@@ -281,76 +236,6 @@ export default function Schedule() {
         </div>
       </div>
 
-      {/* Staffing Rules Modal */}
-      {showRulesModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Set Staffing Requirements</h2>
-            <p className="text-gray-600 mb-6">Configure how many employees are required each day of the week.</p>
-            
-            <div className="space-y-4">
-              {days.map(day => {
-                const dayNames = { 
-                  mon: 'Monday', 
-                  tue: 'Tuesday', 
-                  wed: 'Wednesday', 
-                  thu: 'Thursday', 
-                  fri: 'Friday', 
-                  sat: 'Saturday', 
-                  sun: 'Sunday' 
-                }
-                return (
-                  <div key={day} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <label className="font-medium text-gray-900 capitalize">
-                          {dayNames[day as keyof typeof dayNames]}
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">Required staff count</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="number"
-                          min="0"
-                          max="20"
-                          value={ruleCounts[day]}
-                          onChange={(e) => setRuleCounts({...ruleCounts, [day]: parseInt(e.target.value) || 0})}
-                          className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
-                        />
-                        <span className="text-sm text-gray-600 w-16">
-                          {ruleCounts[day] === 1 ? 'person' : 'people'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
-              <p className="text-sm text-blue-800">
-                <strong>Note:</strong> These rules will be used when generating AI-powered schedules. 
-                Make sure to set realistic numbers based on your business needs.
-              </p>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowRulesModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveStaffingRules}
-                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                Save Rules
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* AI Preferences Modal */}
       {showPreferencesModal && (
@@ -798,6 +683,24 @@ export default function Schedule() {
           // Could refresh schedule data that depends on availability
         }}
       />
+
+      {/* Loading Overlay */}
+      {isGenerating && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[10000]">
+          <div className="bg-white rounded-lg p-8 max-w-md mx-4 shadow-2xl">
+            <div className="flex flex-col items-center">
+              <div className="relative w-16 h-16 mb-4">
+                <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-200 rounded-full"></div>
+                <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Generating Schedule...</h3>
+              <p className="text-gray-600 text-center">
+                The AI is creating an optimal schedule based on your shift slots and employee availability.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }

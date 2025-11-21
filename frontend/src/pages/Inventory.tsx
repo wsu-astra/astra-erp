@@ -3,7 +3,7 @@ import { Layout } from '../components/Layout'
 import api from '../lib/api'
 import { Plus, Trash2, ExternalLink, Package, Bell, AlertTriangle, CheckCircle, Minus } from 'lucide-react'
 import { showToast } from '../components/Toast'
-import { ConfirmDialog } from '../components/Modal'
+import { Modal, ConfirmDialog } from '../components/Modal'
 
 export default function Inventory() {
   const [items, setItems] = useState<any[]>([])
@@ -12,8 +12,10 @@ export default function Inventory() {
   const [generatingOrders, setGeneratingOrders] = useState(false)
   const [generatedOrders, setGeneratedOrders] = useState<any[]>([])
   const [showOrders, setShowOrders] = useState(false)
-  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [showBulkAdjustModal, setShowBulkAdjustModal] = useState(false)
+  const [bulkAdjustItem, setBulkAdjustItem] = useState<any>(null)
+  const [bulkAdjustAmount, setBulkAdjustAmount] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -70,7 +72,7 @@ export default function Inventory() {
 
   const handleUseItem = async (item: any) => {
     if (item.current_quantity <= 0) {
-      showNotification('error', 'Item is out of stock')
+      showToast('Item is out of stock', 'error')
       return
     }
     try {
@@ -79,10 +81,10 @@ export default function Inventory() {
         ...item,
         current_quantity: newQuantity
       })
-      showNotification('success', `Used 1 ${item.unit} of ${item.name}`)
+      showToast(`Used 1 ${item.unit} of ${item.name}`, 'success')
       fetchItems()
     } catch (error) {
-      showNotification('error', 'Failed to update inventory')
+      showToast('Failed to update inventory', 'error')
     }
   }
 
@@ -93,39 +95,45 @@ export default function Inventory() {
         ...item,
         current_quantity: newQuantity
       })
-      showNotification('success', `Added 1 ${item.unit} of ${item.name}`)
+      showToast(`Added 1 ${item.unit} of ${item.name}`, 'success')
       fetchItems()
     } catch (error) {
-      showNotification('error', 'Failed to update inventory')
+      showToast('Failed to update inventory', 'error')
     }
   }
 
-  const handleBulkAdjust = async (item: any) => {
-    const amount = prompt(`Adjust quantity for ${item.name}\nEnter positive number to add, negative to remove:`)
-    if (!amount) return
+  const openBulkAdjustModal = (item: any) => {
+    setBulkAdjustItem(item)
+    setBulkAdjustAmount('')
+    setShowBulkAdjustModal(true)
+  }
+
+  const handleBulkAdjust = async () => {
+    if (!bulkAdjustItem || !bulkAdjustAmount) return
     
-    const adjustment = parseInt(amount)
+    const adjustment = parseInt(bulkAdjustAmount)
     if (isNaN(adjustment)) {
-      showNotification('error', 'Please enter a valid number')
+      showToast('Please enter a valid number', 'error')
       return
     }
     
-    const newQuantity = item.current_quantity + adjustment
+    const newQuantity = bulkAdjustItem.current_quantity + adjustment
     if (newQuantity < 0) {
-      showNotification('error', 'Quantity cannot be negative')
+      showToast('Quantity cannot be negative', 'error')
       return
     }
     
     try {
-      await api.put(`/api/inventory/${item.id}`, {
-        ...item,
+      await api.put(`/api/inventory/${bulkAdjustItem.id}`, {
+        ...bulkAdjustItem,
         current_quantity: newQuantity
       })
       const action = adjustment > 0 ? 'Added' : 'Removed'
-      showNotification('success', `${action} ${Math.abs(adjustment)} ${item.unit} of ${item.name}`)
+      showToast(`${action} ${Math.abs(adjustment)} ${bulkAdjustItem.unit} of ${bulkAdjustItem.name}`, 'success')
       fetchItems()
+      setShowBulkAdjustModal(false)
     } catch (error) {
-      showNotification('error', 'Failed to update inventory')
+      showToast('Failed to update inventory', 'error')
     }
   }
 
@@ -154,20 +162,15 @@ export default function Inventory() {
     try {
       const response = await api.post('/api/inventory/send-low-stock-alert')
       if (response.data.items_alerted === 0) {
-        showNotification('success', 'All stock levels are good! 🎉')
+        showToast('All stock levels are good! 🎉', 'success')
       } else {
-        showNotification('success', `Email alert sent for ${response.data.items_alerted} low stock items 📧`)
+        showToast(`Email alert sent for ${response.data.items_alerted} low stock items 📧`, 'success')
       }
     } catch (error: any) {
-      showNotification('error', error.response?.data?.detail || 'Failed to send alert')
+      showToast(error.response?.data?.detail || 'Failed to send alert', 'error')
     } finally {
       setSendingAlert(false)
     }
-  }
-
-  const showNotification = (type: 'success' | 'error', message: string) => {
-    setNotification({ type, message })
-    setTimeout(() => setNotification(null), 5000)
   }
 
   const getStatusColor = (status: string) => {
@@ -183,22 +186,6 @@ export default function Inventory() {
   return (
     <Layout>
       <div className="space-y-6">
-        {/* Notification Banner */}
-        {notification && (
-          <div className={`p-4 rounded-lg ${notification.type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-            <div className="flex items-center">
-              {notification.type === 'success' ? (
-                <CheckCircle className="text-green-600 mr-2" size={20} />
-              ) : (
-                <AlertTriangle className="text-red-600 mr-2" size={20} />
-              )}
-              <span className={notification.type === 'success' ? 'text-green-800' : 'text-red-800'}>
-                {notification.message}
-              </span>
-            </div>
-          </div>
-        )}
-
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">Inventory Management</h1>
           <div className="flex gap-2">
@@ -275,7 +262,7 @@ export default function Inventory() {
                     required 
                     value={formData.name} 
                     onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" 
+                    className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900" 
                   />
                 </div>
                 <div>
@@ -284,7 +271,7 @@ export default function Inventory() {
                     placeholder="e.g., Produce" 
                     value={formData.category} 
                     onChange={(e) => setFormData({...formData, category: e.target.value})} 
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" 
+                    className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900" 
                   />
                 </div>
               </div>
@@ -297,7 +284,7 @@ export default function Inventory() {
                     required 
                     value={formData.current_quantity} 
                     onChange={(e) => setFormData({...formData, current_quantity: parseInt(e.target.value)})} 
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" 
+                    className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900" 
                   />
                 </div>
                 <div>
@@ -308,7 +295,7 @@ export default function Inventory() {
                     required 
                     value={formData.minimum_quantity} 
                     onChange={(e) => setFormData({...formData, minimum_quantity: parseInt(e.target.value)})} 
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" 
+                    className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900" 
                   />
                 </div>
                 <div>
@@ -317,7 +304,7 @@ export default function Inventory() {
                     placeholder="e.g., lbs, kg" 
                     value={formData.unit} 
                     onChange={(e) => setFormData({...formData, unit: e.target.value})} 
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" 
+                    className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900" 
                   />
                 </div>
               </div>
@@ -327,7 +314,7 @@ export default function Inventory() {
                   placeholder="e.g., organic tomatoes" 
                   value={formData.instacart_search} 
                   onChange={(e) => setFormData({...formData, instacart_search: e.target.value})} 
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" 
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900" 
                 />
               </div>
               <div className="flex gap-2 pt-2">
@@ -453,7 +440,7 @@ export default function Inventory() {
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <button 
-                          onClick={() => handleBulkAdjust(item)}
+                          onClick={() => openBulkAdjustModal(item)}
                           className="text-gray-600 hover:text-gray-700 transition font-bold text-lg"
                           title="Bulk adjust quantity"
                         >
@@ -486,6 +473,71 @@ export default function Inventory() {
             </tbody>
           </table>
         </div>
+
+        {/* Bulk Adjust Modal */}
+        <Modal
+          isOpen={showBulkAdjustModal}
+          onClose={() => setShowBulkAdjustModal(false)}
+          title={`Adjust Quantity for ${bulkAdjustItem?.name || ''}`}
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <p className="text-sm text-gray-600">Current Quantity</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {bulkAdjustItem?.current_quantity} {bulkAdjustItem?.unit}
+              </p>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Enter adjustment amount
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Enter positive number to add, negative to remove
+              </p>
+              <input
+                type="number"
+                value={bulkAdjustAmount}
+                onChange={(e) => setBulkAdjustAmount(e.target.value)}
+                placeholder="e.g., 10 or -5"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleBulkAdjust()
+                  }
+                }}
+              />
+            </div>
+
+            {bulkAdjustAmount && !isNaN(parseInt(bulkAdjustAmount)) && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  New quantity will be: <strong>
+                    {bulkAdjustItem?.current_quantity + parseInt(bulkAdjustAmount)} {bulkAdjustItem?.unit}
+                  </strong>
+                </p>
+              </div>
+            )}
+            
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={() => setShowBulkAdjustModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkAdjust}
+                disabled={!bulkAdjustAmount || isNaN(parseInt(bulkAdjustAmount))}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Delete Confirmation Dialog */}
         <ConfirmDialog
