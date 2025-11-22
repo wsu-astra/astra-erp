@@ -210,11 +210,7 @@ async def generate_schedule(
         for rule in rules_result.data
     ]
     
-    if not staffing_rules:
-        raise HTTPException(
-            status_code=400, 
-            detail="No staffing rules configured. Set required staff counts first."
-        )
+    # Staffing rules are optional - if not set, AI will generate based on availability
     
     # Get active employees from profiles (exclude admins) with availability  
     profiles_result = supabase.table("profiles")\
