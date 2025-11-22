@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Layout } from '../components/Layout'
 import api from '../lib/api'
-import { Plus, Trash2, ExternalLink, Package, Bell, AlertTriangle, CheckCircle, Minus } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, Package, Bell, AlertTriangle, CheckCircle, Minus, ShoppingBag, X, Star, MapPin, Clock } from 'lucide-react'
 import { showToast } from '../components/Toast'
 import { Modal, ConfirmDialog } from '../components/Modal'
 
@@ -16,6 +16,11 @@ export default function Inventory() {
   const [showBulkAdjustModal, setShowBulkAdjustModal] = useState(false)
   const [bulkAdjustItem, setBulkAdjustItem] = useState<any>(null)
   const [bulkAdjustAmount, setBulkAdjustAmount] = useState('')
+  const [dealsPanelOpen, setDealsPanelOpen] = useState(false)
+  const [selectedDealItem, setSelectedDealItem] = useState<any>(null)
+  const [deals, setDeals] = useState<any[]>([])
+  const [dealsLoading, setDealsLoading] = useState(false)
+  const [aiRecommendation, setAiRecommendation] = useState<any>(null)
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -135,6 +140,99 @@ export default function Inventory() {
     } catch (error) {
       showToast('Failed to update inventory', 'error')
     }
+  }
+
+  const getUserLocation = (): Promise<{lat: number, lon: number} | null> => {
+    return new Promise((resolve) => {
+      console.log('📍 Checking geolocation API...')
+      
+      if (!navigator.geolocation) {
+        console.error('❌ Geolocation API not supported by this browser')
+        resolve(null)
+        return
+      }
+      
+      console.log('✅ Geolocation API available, requesting position...')
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          console.log('🎉 SUCCESS! Got position:', position)
+          console.log('📍 Coordinates:', position.coords.latitude, position.coords.longitude)
+          resolve({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude
+          })
+        },
+        (error) => {
+          console.error('❌ Location Error:', error)
+          console.error('Error code:', error.code)
+          console.error('Error message:', error.message)
+          console.error('PERMISSION_DENIED=1, POSITION_UNAVAILABLE=2, TIMEOUT=3')
+          // Don't show error toast - we have fallback addresses
+          resolve(null)
+        },
+        { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
+      )
+    })
+  }
+
+  const handleFindDeals = async (item: any) => {
+    setSelectedDealItem(item)
+    setDealsPanelOpen(true)
+    setDealsLoading(true)
+    setDeals([])
+    setAiRecommendation(null)
+    
+    try {
+      // Try to get user location (optional - has fallback)
+      showToast('Finding best deals...', 'info')
+      console.log('🔍 STEP 1: Requesting location...')
+      const userLocation = await getUserLocation()
+      
+      if (userLocation) {
+        console.log('✅ STEP 2: GOT YOUR LOCATION!', userLocation)
+        console.log('🌍 You are at:', userLocation.lat, userLocation.lon)
+        console.log('📦 STEP 3: Sending this to backend...')
+      } else {
+        console.log('❌ STEP 2: NO LOCATION (denied or failed)')
+        console.log('📍 Using default San Francisco locations')
+      }
+      
+      const response = await api.post(`/api/inventory/find-deals/${item.id}`, {
+        user_location: userLocation
+      })
+      
+      // Log location status from backend
+      console.log('🌐 Backend says:', response.data.location_status)
+      if (response.data.user_location) {
+        console.log('✅ YOUR REAL LOCATION WAS USED:', response.data.user_location)
+        const lat = response.data.user_location.lat
+        const lon = response.data.user_location.lon
+        if (lat > 42 && lat < 43 && lon > -84 && lon < -82) {
+          console.log('🏙️ Showing DETROIT area stores')
+        } else {
+          console.log('🌉 Showing SAN FRANCISCO area stores')
+        }
+      } else {
+        console.log('📍 Using fallback SF addresses (location not provided)')
+      }
+      
+      setDeals(response.data.deals || [])
+      setAiRecommendation(response.data.recommendation)
+      showToast('✨ Watson AI found the best deals!', 'success')
+    } catch (error) {
+      console.error('Failed to fetch deals:', error)
+      showToast('Failed to find deals. Please try again.', 'error')
+    } finally {
+      setDealsLoading(false)
+    }
+  }
+
+  const closeDealPanel = () => {
+    setDealsPanelOpen(false)
+    setSelectedDealItem(null)
+    setDeals([])
+    setAiRecommendation(null)
   }
 
   const generateOrder = async () => {
@@ -446,18 +544,13 @@ export default function Inventory() {
                         >
                           ±
                         </button>
-                        <a 
-                          href={`https://www.instacart.com/store/s?k=${(() => {
-                            const searchTerm = item.instacart_search?.trim() || item.name || 'groceries';
-                            return encodeURIComponent(searchTerm);
-                          })()}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
+                        <button
+                          onClick={() => handleFindDeals(item)}
                           className="text-primary-600 hover:text-primary-700 transition"
-                          title={`Order ${item.name} on Instacart`}
+                          title={`Find Best Deals with AI for ${item.name}`}
                         >
-                          <ExternalLink size={18} />
-                        </a>
+                          <ShoppingBag size={18} />
+                        </button>
                         <button 
                           onClick={() => setDeleteConfirmId(item.id)} 
                           className="text-red-600 hover:text-red-700 transition"
@@ -549,6 +642,223 @@ export default function Inventory() {
           confirmText="Delete"
           variant="danger"
         />
+
+        {/* AI Deal Finder Side Panel */}
+        {dealsPanelOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-end">
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/30"
+              onClick={closeDealPanel}
+            />
+            
+            {/* Side Panel */}
+            <div className="relative h-full w-[450px] bg-white shadow-2xl transform transition-transform duration-300 ease-out overflow-y-auto">
+              {/* Header */}
+              <div className="sticky top-0 z-10 bg-gradient-to-r from-primary-600 to-primary-700 text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <ShoppingBag size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold">AI Deal Finder</h2>
+                      <p className="text-sm text-primary-100">Powered by Watson</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={closeDealPanel}
+                    className="p-2 hover:bg-white/10 rounded-lg transition"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 space-y-6">
+                {/* Price Info Notice */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                  <p className="text-blue-800">
+                    💡 <strong>Note:</strong> Prices shown are market-based estimates. Click "Order Now" to see live pricing on Instacart.
+                  </p>
+                </div>
+                {/* Item Info */}
+                {selectedDealItem && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-lg text-gray-900">{selectedDealItem.name}</h3>
+                        <p className="text-sm text-gray-600">{selectedDealItem.category}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500">Need</p>
+                        <p className="font-bold text-primary-600">
+                          {Math.max(selectedDealItem.minimum_quantity - selectedDealItem.current_quantity, 1)} {selectedDealItem.unit}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Loading State */}
+                {dealsLoading && (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                    <p className="text-gray-600 font-medium">Finding best deals with AI...</p>
+                    <p className="text-sm text-gray-500">Analyzing prices, ratings, and delivery times</p>
+                  </div>
+                )}
+
+                {/* AI Recommendation */}
+                {!dealsLoading && aiRecommendation && (
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-5">
+                    <div className="flex items-start space-x-3">
+                      <div className="p-2 bg-green-500 text-white rounded-lg">
+                        <Star className="fill-current" size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h4 className="font-bold text-green-900">Watson Recommends</h4>
+                          <span className="px-2 py-0.5 bg-green-500 text-white text-xs font-medium rounded-full">
+                            {Math.round((aiRecommendation.confidence || 0.9) * 100)}% confident
+                          </span>
+                        </div>
+                        <p className="text-lg font-semibold text-green-900 mb-1">{aiRecommendation.store}</p>
+                        <p className="text-sm text-green-700">{aiRecommendation.reason}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Deals List */}
+                {!dealsLoading && deals.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-gray-900 flex items-center space-x-2">
+                      <span>Available Deals</span>
+                      <span className="text-sm text-gray-500 font-normal">({deals.length} stores)</span>
+                    </h4>
+                    
+                    {deals.map((deal, index) => {
+                      const isRecommended = aiRecommendation && deal.store === aiRecommendation.store
+                      return (
+                        <div
+                          key={index}
+                          className={`border-2 rounded-xl p-4 transition-all hover:shadow-md ${
+                            isRecommended
+                              ? 'border-green-400 bg-green-50/50'
+                              : 'border-gray-200 bg-white hover:border-primary-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="flex items-center space-x-2 mb-1">
+                                <h5 className="font-bold text-gray-900">{deal.store}</h5>
+                                {isRecommended && (
+                                  <span className="px-2 py-0.5 bg-green-500 text-white text-xs font-bold rounded-full">
+                                    BEST DEAL
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-1 text-sm text-gray-600">
+                                <Star className="fill-yellow-400 text-yellow-400" size={14} />
+                                <span>{typeof deal.rating === 'number' ? deal.rating.toFixed(1) : deal.rating}</span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-2xl font-bold text-primary-600">${deal.price}</div>
+                              <div className="text-xs text-gray-500">per {deal.unit}</div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+                            <div className="flex items-center space-x-2 text-gray-600">
+                              <MapPin size={14} />
+                              <span>{deal.distance}</span>
+                            </div>
+                            <div className="flex items-center space-x-2 text-gray-600">
+                              <Clock size={14} />
+                              <span>{deal.delivery_time}</span>
+                            </div>
+                          </div>
+
+                          {deal.total_cost && (
+                            <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg mb-3">
+                              <span className="text-sm text-gray-600">Total Cost</span>
+                              <span className="font-bold text-gray-900">${deal.total_cost.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {/* Pros/Cons */}
+                          {(deal.pros || deal.cons) && (
+                            <div className="space-y-2 mb-3">
+                              {deal.pros && deal.pros.length > 0 && (
+                                <div className="space-y-1">
+                                  {deal.pros.map((pro: string, i: number) => (
+                                    <div key={i} className="flex items-start space-x-2 text-xs">
+                                      <span className="text-green-500 mt-0.5">✓</span>
+                                      <span className="text-green-700">{pro}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {deal.cons && deal.cons.length > 0 && (
+                                <div className="space-y-1">
+                                  {deal.cons.map((con: string, i: number) => (
+                                    <div key={i} className="flex items-start space-x-2 text-xs">
+                                      <span className="text-gray-400 mt-0.5">•</span>
+                                      <span className="text-gray-600">{con}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <a
+                            href={deal.url || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              console.log('🔗 Order Now clicked!')
+                              console.log('🏪 Store:', deal.store)
+                              console.log('🔗 URL:', deal.url)
+                              if (!deal.url) {
+                                e.preventDefault()
+                                console.error('❌ No URL provided for this store!')
+                                alert('No order URL available for this store')
+                              } else {
+                                console.log('✅ Opening:', deal.url)
+                              }
+                            }}
+                            className={`w-full py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
+                              isRecommended
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-primary-600 hover:bg-primary-700 text-white'
+                            }`}
+                          >
+                            <span>Order Now</span>
+                            <ExternalLink size={16} />
+                          </a>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!dealsLoading && deals.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="text-gray-400 mb-3">
+                      <Package size={48} className="mx-auto" />
+                    </div>
+                    <p className="text-gray-600">No deals found</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   )
