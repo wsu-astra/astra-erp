@@ -23,14 +23,14 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     low_stock = sum(1 for item in inventory_result.data if 0 < item["current_quantity"] < item["minimum_quantity"])
     out_of_stock = sum(1 for item in inventory_result.data if item["current_quantity"] == 0)
     
-    # Get employee stats
-    employees_result = supabase.table("employees")\
-        .select("active")\
+    # Get employee stats from profiles table (same as employees page)
+    employees_result = supabase.table("profiles")\
+        .select("is_active")\
         .eq("business_id", business_id)\
         .execute()
     
     total_employees = len(employees_result.data)
-    active_employees = sum(1 for emp in employees_result.data if emp["active"])
+    active_employees = sum(1 for emp in employees_result.data if emp.get("is_active", True))
     
     # Get upcoming shifts (next 7 days)
     today = datetime.now().date()
