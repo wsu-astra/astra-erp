@@ -206,8 +206,15 @@ export default function Inventory() {
       console.log('🌐 Backend says:', response.data.location_status)
       if (response.data.user_location) {
         console.log('✅ YOUR REAL LOCATION WAS USED:', response.data.user_location)
+        const lat = response.data.user_location.lat
+        const lon = response.data.user_location.lon
+        if (lat > 42 && lat < 43 && lon > -84 && lon < -82) {
+          console.log('🏙️ Showing DETROIT area stores')
+        } else {
+          console.log('🌉 Showing SAN FRANCISCO area stores')
+        }
       } else {
-        console.log('📍 Using fallback SF addresses (you denied location access)')
+        console.log('📍 Using fallback SF addresses (location not provided)')
       }
       
       setDeals(response.data.deals || [])
@@ -641,7 +648,7 @@ export default function Inventory() {
           <div className="fixed inset-0 z-50 flex items-start justify-end">
             {/* Backdrop */}
             <div 
-              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/30"
               onClick={closeDealPanel}
             />
             
@@ -670,6 +677,12 @@ export default function Inventory() {
 
               {/* Content */}
               <div className="p-6 space-y-6">
+                {/* Price Info Notice */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                  <p className="text-blue-800">
+                    💡 <strong>Note:</strong> Prices shown are market-based estimates. Click "Order Now" to see live pricing on Instacart.
+                  </p>
+                </div>
                 {/* Item Info */}
                 {selectedDealItem && (
                   <div className="bg-gray-50 rounded-lg p-4">

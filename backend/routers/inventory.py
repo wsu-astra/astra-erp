@@ -347,21 +347,31 @@ async def find_best_deals(
     item = result.data[0]
     
     # Realistic store pricing database based on market research
-    # Price multipliers reflect actual market positioning
+    # Updated for actual stores: Kroger, Meijer, Costco, ALDI, Safeway, Target, Walmart
     category_pricing = {
-        "Produce": {"base": 2.99, "whole_foods": 0.92, "safeway": 1.08, "trader_joes": 0.88, "target": 1.05},
-        "Dairy": {"base": 4.49, "whole_foods": 1.15, "safeway": 1.02, "trader_joes": 0.95, "target": 1.08},
-        "Meat": {"base": 8.99, "whole_foods": 1.25, "safeway": 0.98, "trader_joes": 0.90, "target": 1.10},
-        "Bakery": {"base": 3.99, "whole_foods": 1.10, "safeway": 1.05, "trader_joes": 0.92, "target": 1.03},
-        "Pantry": {"base": 5.99, "whole_foods": 1.08, "safeway": 0.95, "trader_joes": 0.88, "target": 0.92},
-        "Beverages": {"base": 3.49, "whole_foods": 1.12, "safeway": 1.00, "trader_joes": 0.90, "target": 0.98},
-        "Frozen": {"base": 4.99, "whole_foods": 1.15, "safeway": 1.05, "trader_joes": 0.92, "target": 1.02},
+        "Produce": {"base": 2.99, "kroger": 1.00, "meijer": 0.95, "costco": 1.20, "aldi": 0.85, "safeway": 1.08, "target": 1.05, "walmart": 0.92},
+        "Dairy": {"base": 4.49, "kroger": 0.98, "meijer": 1.02, "costco": 1.15, "aldi": 0.88, "safeway": 1.02, "target": 1.08, "walmart": 0.95},
+        "Meat": {"base": 8.99, "kroger": 1.02, "meijer": 0.98, "costco": 1.10, "aldi": 0.92, "safeway": 0.98, "target": 1.10, "walmart": 0.96},
+        "Bakery": {"base": 3.99, "kroger": 1.00, "meijer": 1.05, "costco": 1.08, "aldi": 0.90, "safeway": 1.05, "target": 1.03, "walmart": 0.94},
+        "Pantry": {"base": 5.99, "kroger": 0.96, "meijer": 0.95, "costco": 1.05, "aldi": 0.82, "safeway": 0.95, "target": 0.92, "walmart": 0.88},
+        "Beverages": {"base": 3.49, "kroger": 0.98, "meijer": 1.00, "costco": 1.12, "aldi": 0.86, "safeway": 1.00, "target": 0.98, "walmart": 0.90},
+        "Frozen": {"base": 4.99, "kroger": 1.00, "meijer": 1.05, "costco": 1.15, "aldi": 0.88, "safeway": 1.05, "target": 1.02, "walmart": 0.92},
     }
     
     # Get category or use default
     category = item.get("category", "Pantry")
     pricing = category_pricing.get(category, category_pricing["Pantry"])
     base = pricing["base"]
+    
+    # Debug: Print item details and pricing
+    print(f"\n{'='*60}")
+    print(f"📦 ITEM DETAILS")
+    print(f"Item: {item.get('name')} (ID: {item_id})")
+    print(f"Category: {category}")
+    print(f"Base Price: ${base}")
+    print(f"Current Quantity: {item.get('current_quantity', 0)} {item.get('unit')}")
+    print(f"Minimum Quantity: {item.get('minimum_quantity', 0)} {item.get('unit')}")
+    print(f"{'='*60}\n")
     
     # Determine location and select appropriate stores
     # Detroit area: lat ~42, lon ~-83
@@ -380,7 +390,7 @@ async def find_best_deals(
         stores = [
             {
                 "store": "Instacart - Kroger",
-                "price": round(base * pricing["trader_joes"], 2),
+                "price": round(base * pricing.get("kroger", 1.0), 2),
                 "unit": item["unit"],
                 "distance": "4.2 mi",
                 "delivery_time": "3 hrs",
@@ -391,7 +401,7 @@ async def find_best_deals(
             },
             {
                 "store": "Instacart - Meijer",
-                "price": round(base * pricing["safeway"], 2),
+                "price": round(base * pricing.get("meijer", 1.0), 2),
                 "unit": item["unit"],
                 "distance": "3.8 mi",
                 "delivery_time": "3 hrs",
@@ -413,7 +423,7 @@ async def find_best_deals(
             },
             {
                 "store": "Instacart - ALDI",
-                "price": round(base * pricing["whole_foods"], 2),
+                "price": round(base * pricing.get("aldi", 1.0), 2),
                 "unit": item["unit"],
                 "distance": "2.8 mi",
                 "delivery_time": "2 hrs",
@@ -429,7 +439,7 @@ async def find_best_deals(
         stores = [
             {
                 "store": "Instacart - Safeway",
-                "price": round(base * pricing["safeway"], 2),
+                "price": round(base * pricing.get("safeway", 1.0), 2),
                 "unit": item["unit"],
                 "distance": "2.1 mi",
                 "delivery_time": "3 hrs",
@@ -440,7 +450,7 @@ async def find_best_deals(
             },
             {
                 "store": "Instacart - Costco",
-                "price": round(base * pricing["target"], 2),
+                "price": round(base * pricing.get("costco", 1.0), 2),
                 "unit": item["unit"],
                 "distance": "4.5 mi",
                 "delivery_time": "3 hrs",
@@ -451,7 +461,7 @@ async def find_best_deals(
             },
             {
                 "store": "Instacart - Target",
-                "price": round(base * pricing["whole_foods"], 2),
+                "price": round(base * pricing.get("target", 1.0), 2),
                 "unit": item["unit"],
                 "distance": "1.8 mi",
                 "delivery_time": "2 hrs",
@@ -462,7 +472,7 @@ async def find_best_deals(
             },
             {
                 "store": "Instacart - Walmart",
-                "price": round(base * pricing["trader_joes"], 2),
+                "price": round(base * pricing.get("walmart", 1.0), 2),
                 "unit": item["unit"],
                 "distance": "3.2 mi",
                 "delivery_time": "2 hrs",
@@ -472,6 +482,12 @@ async def find_best_deals(
                 "url": f"https://www.instacart.com/store/walmart/s?k={item['name']}"
             }
         ]
+    
+    # Debug: Print calculated prices for each store
+    print(f"\n💰 CALCULATED PRICES FOR {item.get('name').upper()}:")
+    for store in stores:
+        print(f"  {store['store']}: ${store['price']}/{store['unit']}")
+    print(f"\n")
     
     # Calculate required quantity from AI recommendation or minimum
     required_qty = item.get("minimum_quantity", 1) - item.get("current_quantity", 0)
