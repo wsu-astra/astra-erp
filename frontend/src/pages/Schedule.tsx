@@ -17,6 +17,7 @@ export default function Schedule() {
   const [showAddSlotModal, setShowAddSlotModal] = useState(false)
   const [showCopySlotModal, setShowCopySlotModal] = useState(false)
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false)
+  const [showClearScheduleConfirm, setShowClearScheduleConfirm] = useState(false)
   const [showDeleteSlotConfirm, setShowDeleteSlotConfirm] = useState<number | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [aiPreferences, setAiPreferences] = useState('')
@@ -75,6 +76,18 @@ export default function Schedule() {
       showToast(message, 'error')
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const clearSchedule = async () => {
+    setShowClearScheduleConfirm(false)
+    try {
+      await api.delete(`/api/schedule/shifts/${weekStart}`)
+      showToast('Schedule cleared successfully!', 'success')
+      await fetchShifts()
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to clear schedule'
+      showToast(message, 'error')
     }
   }
 
@@ -139,6 +152,14 @@ export default function Schedule() {
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
               Generate AI Schedule
+            </button>
+            <button 
+              onClick={() => setShowClearScheduleConfirm(true)} 
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+              disabled={shifts.length === 0}
+            >
+              <Trash2 className="w-4 h-4" />
+              Clear Schedule
             </button>
           </div>
         </div>
@@ -650,6 +671,16 @@ export default function Schedule() {
         message="This will generate an AI-powered schedule for the current week. Any existing shifts will be replaced. Continue?"
         confirmText="Generate"
         variant="primary"
+      />
+
+      <ConfirmDialog
+        isOpen={showClearScheduleConfirm}
+        onClose={() => setShowClearScheduleConfirm(false)}
+        onConfirm={clearSchedule}
+        title="Clear Schedule?"
+        message={`This will delete all shifts for the week of ${format(new Date(weekStart), 'MMM d')}. This action cannot be undone.`}
+        confirmText="Clear Schedule"
+        variant="danger"
       />
 
       <ConfirmDialog
