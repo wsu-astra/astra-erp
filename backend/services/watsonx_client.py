@@ -239,6 +239,102 @@ JSON Response:"""
         shifts = result.get("shifts", [])
         print(f"   📅 Generated {len(shifts)} shifts across the week")
         return shifts
+    
+    def analyze_deals(self, item_name: str, required_quantity: float, deals: List[Dict]) -> Dict[str, Any]:
+        """
+        Analyze deals from multiple stores and recommend the best option.
+        
+        Input:
+        - item_name: "Organic Eggs"
+        - required_quantity: 2.2
+        - deals: [{"store": "Whole Foods", "price": 4.99, ...}]
+        
+        Output: {"recommendation": {...}, "ranked_deals": [...]}
+        """
+        print("🤖 Calling WatsonX AI for deal analysis...")
+        print(f"   Analyzing {len(deals)} deals for {item_name}")
+        
+        prompt = f"""You are a smart shopping assistant AI. Analyze these deals for {item_name} and recommend the best option.
+
+Consider these factors in order of importance:
+1. Price per unit (lowest total cost)
+2. Delivery time (faster is better for fresh items)
+3. Store rating (quality and reliability)
+4. Distance (closer saves time)
+5. Bulk discount opportunities for quantity: {required_quantity}
+
+Available Deals:
+{json.dumps(deals, indent=2)}
+
+Rules:
+- Calculate total cost (price × quantity needed)
+- Consider delivery time for perishables
+- Weight price more heavily than convenience
+- Provide specific reasons (include $ savings or time saved)
+
+Return ONLY valid JSON in this exact format:
+{{
+  "recommendation": {{
+    "store": "Store Name",
+    "reason": "Why best (max 15 words with specifics)",
+    "confidence": 0.95
+  }},
+  "ranked_deals": [
+    {{
+      "store": "Store Name",
+      "price": 4.99,
+      "total_cost": 10.98,
+      "ai_score": 95,
+      "pros": ["Lowest price: saves $2.50", "Fast 2hr delivery"],
+      "cons": ["1.5 mi away"]
+    }}
+  ]
+}}
+
+JSON Response:"""
+
+        model = self._get_model()
+        print("   Sending request to WatsonX Llama-3.3-70B...")
+        response = model.generate_text(prompt=prompt)
+        print("   ✅ Received AI deal analysis")
+        
+        # Parse JSON response
+        response_text = response.strip()
+        
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0].strip()
+        
+        # Find and extract JSON
+        try:
+            start = response_text.index('{')
+            brace_count = 0
+            end = start
+            for i in range(start, len(response_text)):
+                if response_text[i] == '{':
+                    brace_count += 1
+                elif response_text[i] == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end = i + 1
+                        break
+            
+            json_text = response_text[start:end]
+            result = json.loads(json_text)
+            print(f"   💰 Best deal: {result.get('recommendation', {}).get('store', 'Unknown')}")
+            return result
+        except (ValueError, json.JSONDecodeError) as e:
+            print(f"   ❌ Failed to parse deal analysis: {e}")
+            # Return fallback
+            return {
+                "recommendation": {
+                    "store": deals[0]["store"] if deals else "Unknown",
+                    "reason": "Best available option",
+                    "confidence": 0.7
+                },
+                "ranked_deals": deals
+            }
 
 # Singleton instance
 watsonx_client = WatsonXClient()
